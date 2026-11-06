@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FAQ Semantic Search</title>
+<style>
+  :root {
+    --bg: #f6f7f4;
+    --surface: #ffffff;
+    --text: #1c2321;
+    --muted: #5d6b66;
+    --border: #dfe4e0;
+    --accent: #0b7a4b;
+    --accent-soft: #e3f3ea;
+    --bar: #d7ebe0;
+    --error: #b3261e;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101513;
+      --surface: #182019;
+      --text: #e8efeb;
+      --muted: #9baba4;
+      --border: #28342d;
+      --accent: #4cc38a;
+      --accent-soft: #1d3327;
+      --bar: #25402f;
+      --error: #f2a29c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 48px 20px 80px; }
+  h1 { font-size: 1.9rem; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 28px; }
+
+  form {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .row2 { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+  input[type="text"], select, button {
+    font: inherit;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+  }
+  input[type="text"] { width: 100%; }
+  input:focus-visible, select:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 12px 22px;
+  }
+  button.primary:disabled { opacity: .6; cursor: wait; }
+  select { padding-right: 10px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+  .chip {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: none;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: .88rem;
+    cursor: pointer;
+  }
+  .chip:hover { filter: brightness(.96); }
+
+  #status { color: var(--muted); margin: 0 0 14px; min-height: 1.4em; }
+  #status.error { color: var(--error); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    margin-bottom: 14px;
+  }
+  .card-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .rank { font-weight: 700; color: var(--accent); }
+  .title { font-weight: 650; font-size: 1.05rem; }
+  .tag {
+    margin-left: auto;
+    font-size: .78rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 10px;
+  }
+  .question { color: var(--muted); margin: 8px 0 6px; font-style: italic; }
+  .answer { margin: 0 0 14px; }
+  .score { display: flex; align-items: center; gap: 10px; font-size: .82rem; color: var(--muted); }
+  .bar { flex: 1; height: 8px; background: var(--bar); border-radius: 99px; overflow: hidden; }
+  .fill { height: 100%; background: var(--accent); border-radius: 99px; }
+
+  footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FAQ Semantic Search</h1>
+  <p class="sub">Ask in your own words. Results are ranked by meaning, not keywords.</p>
+
+  <form id="form">
+    <input id="q" type="text" placeholder="e.g. my parcel hasn't arrived" autocomplete="off" maxlength="300" autofocus>
+    <button class="primary" id="go" type="submit">Search</button>
+  </form>
+
+  <div class="row2">
+    <label>Category
+      <select id="category"><option value="">All</option></select>
+    </label>
+    <label>Results
+      <select id="limit">
+        <option>3</option><option selected>5</option><option>10</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="chips" id="chips"></div>
+
+  <p id="status" role="status"></p>
+  <section id="results"></section>
+
+  <footer>Powered by MongoDB Atlas Vector Search and all-MiniLM-L6-v2.</footer>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const examples = [
+  "I forgot my password",
+  "my parcel hasn't arrived",
+  "get my money back",
+  "someone hacked my account",
+  "app keeps crashing",
+  "can I pay with UPI"
+];
+
+function setStatus(msg, isError = false) {
+  const el = $("status");
+  el.textContent = msg;
+  el.className = isError ? "error" : "";
+}
+
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined) node.textContent = text;   // textContent: no HTML injection
+  return node;
+}
+
+function renderResults(results) {
+  const box = $("results");
+  box.replaceChildren();
+  results.forEach((r, i) => {
+    const card = el("article", "card");
+
+    const head = el("div", "card-head");
+    head.append(el("span", "rank", "#" + (i + 1)), el("span", "title", r.title), el("span", "tag", r.category));
+
+    const score = el("div", "score");
+    const bar = el("div", "bar");
+    const fill = el("div", "fill");
+    fill.style.width = Math.max(0, Math.min(1, r.score)) * 100 + "%";
+    bar.append(fill);
+    score.append(el("span", "", "Similarity " + r.score.toFixed(3)), bar);
+
+    card.append(head, el("p", "question", r.question), el("p", "answer", r.answer), score);
+    box.append(card);
+  });
+}
+
+async function runSearch() {
+  const q = $("q").value.trim();
+  if (!q) { setStatus("Please type a question.", true); return; }
+
+  const params = new URLSearchParams({ q, limit: $("limit").value });
+  if ($("category").value) params.set("category", $("category").value);
+
+  $("go").disabled = true;
+  setStatus("Searching...");
+  try {
+    const res = await fetch("/api/search?" + params);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Something went wrong.");
+    renderResults(data.results);
+    setStatus(data.results.length ? data.results.length + " results" : "No results found.");
+  } catch (err) {
+    $("results").replaceChildren();
+    setStatus(err.message, true);
+  } finally {
+    $("go").disabled = false;
+  }
+}
+
+async function loadCategories() {
+  try {
+    const res = await fetch("/api/categories");
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    data.forEach((c) => {
+      const opt = el("option", "", c);
+      opt.value = c;
+      $("category").append(opt);
+    });
+  } catch (err) {
+    setStatus(err.message, true);
+  }
+}
+
+examples.forEach((text) => {
+  const chip = el("button", "chip", text);
+  chip.type = "button";
+  chip.addEventListener("click", () => { $("q").value = text; runSearch(); });
+  $("chips").append(chip);
+});
+
+$("form").addEventListener("submit", (e) => { e.preventDefault(); runSearch(); });
+loadCategories();
+</script>
+</body>
+</html>

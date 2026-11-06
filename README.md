@@ -39,6 +39,15 @@ A small Python app that finds the most relevant FAQ articles for a question by
    python search.py            # interactive mode
    ```
 
+7. Or use the web UI:
+
+   ```bash
+   python app.py
+   ```
+
+   Then open http://127.0.0.1:5000. Type a question, pick a category, and see
+   ranked results with a similarity bar. Example queries are one click away.
+
 ## Files
 
 | File | Purpose |
@@ -46,7 +55,14 @@ A small Python app that finds the most relevant FAQ articles for a question by
 | `embeddings.py` | Loads the model, converts text to vectors |
 | `database.py` | Connects to Atlas, creates the vector index |
 | `ingest.py` | Reads JSON, embeds, inserts, builds index |
-| `search.py` | Runs the `$vectorSearch` aggregation |
+| `search.py` | Runs the `$vectorSearch` aggregation (command line) |
+| `app.py` | Flask server: serves the UI and a JSON search API |
+| `templates/index.html` | The search page (HTML, CSS and JavaScript in one file) |
+
+## API
+
+- `GET /api/search?q=<question>&category=<optional>&limit=<1-10>` returns ranked results as JSON.
+- `GET /api/categories` returns the list of categories for the dropdown.
 
 ## Notes
 
