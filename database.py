@@ -1,7 +1,8 @@
 """MongoDB Atlas connection and vector index management."""
 import os
 import time
-
+import certifi
+from pymongo import MongoClient
 from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.operations import SearchIndexModel
@@ -20,7 +21,7 @@ EMBEDDING_FIELD = "embedding"
 def get_collection():
     if not MONGODB_URI or "<password>" in MONGODB_URI:
         raise SystemExit("Set a real MONGODB_URI in your .env file first.")
-    client = MongoClient(MONGODB_URI)
+    client = MongoClient(MONGODB_URI, tlsCAFile=certifi.where())    
     return client[DB_NAME][COLLECTION_NAME]
 
 
