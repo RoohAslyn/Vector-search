@@ -23,3 +23,20 @@ __pycache__/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Python virtual environments
+venv/
+env/
+.venv/
+vector-search/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Environment variables
+.env
+.env.*
+
+# macOS
+.DS_Store
